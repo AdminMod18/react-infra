@@ -26,10 +26,28 @@ jobs:
 
       - name: Register Azure Resource Providers
         run: |
-          az provider register --namespace Microsoft.App --wait
-          az provider register --namespace Microsoft.OperationalInsights --wait
-          az provider register --namespace Microsoft.Insights --wait
-          echo "Resource providers registered successfully"
+          echo "Checking and registering Azure resource providers..."
+
+          # Function to check and register provider
+          register_provider() {
+            local namespace=$1
+            local status=$(az provider show --namespace $namespace --query "registrationState" -o tsv 2>/dev/null || echo "NotFound")
+
+            if [ "$status" == "Registered" ]; then
+              echo "✓ $namespace is already registered"
+            else
+              echo "⟳ Registering $namespace..."
+              az provider register --namespace $namespace --wait
+              echo "✓ $namespace registered successfully"
+            fi
+          }
+
+          # Register required providers
+          register_provider "Microsoft.App"
+          register_provider "Microsoft.OperationalInsights"
+          register_provider "Microsoft.Insights"
+
+          echo "All resource providers are ready!"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -50,8 +68,22 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ env.ARM_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ env.ARM_TENANT_ID }}
 
+      - name: Terraform Plan
+        run: |
+          echo "Planning infrastructure changes..."
+          terraform plan -var="docker_image=${{ steps.payload.outputs.docker_image }}" -out=tfplan
+          echo "Plan created successfully"
+        env:
+          ARM_CLIENT_ID: ${{ env.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ env.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ env.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ env.ARM_TENANT_ID }}
+
       - name: Terraform Apply with New Image
-        run: terraform apply -auto-approve -var="docker_image=${{ steps.payload.outputs.docker_image }}"
+        run: |
+          echo "Applying infrastructure changes..."
+          terraform apply -auto-approve tfplan
+          echo "Infrastructure deployed successfully!"
         env:
           ARM_CLIENT_ID: ${{ env.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ env.ARM_CLIENT_SECRET }}
