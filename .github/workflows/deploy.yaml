@@ -49,6 +49,54 @@ jobs:
 
           echo "All resource providers are ready!"
 
+      - name: Setup Terraform State Backend
+        run: |
+          echo "Setting up Terraform state backend..."
+
+          RG_NAME="terraform-state-rg"
+          STORAGE_ACCOUNT="tfstatereactent"
+          CONTAINER_NAME="tfstate"
+          LOCATION="eastus"
+
+          # Create resource group if it doesn't exist
+          if ! az group exists --name $RG_NAME | grep -q true; then
+            echo "Creating resource group $RG_NAME..."
+            az group create --name $RG_NAME --location $LOCATION
+          else
+            echo "✓ Resource group $RG_NAME already exists"
+          fi
+
+          # Create storage account if it doesn't exist
+          if ! az storage account show --name $STORAGE_ACCOUNT --resource-group $RG_NAME &>/dev/null; then
+            echo "Creating storage account $STORAGE_ACCOUNT..."
+            az storage account create \
+              --name $STORAGE_ACCOUNT \
+              --resource-group $RG_NAME \
+              --location $LOCATION \
+              --sku Standard_LRS \
+              --encryption-services blob \
+              --https-only true \
+              --min-tls-version TLS1_2
+          else
+            echo "✓ Storage account $STORAGE_ACCOUNT already exists"
+          fi
+
+          # Get storage account key
+          ACCOUNT_KEY=$(az storage account keys list --resource-group $RG_NAME --account-name $STORAGE_ACCOUNT --query '[0].value' -o tsv)
+
+          # Create blob container if it doesn't exist
+          if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT --account-key $ACCOUNT_KEY &>/dev/null; then
+            echo "Creating container $CONTAINER_NAME..."
+            az storage container create \
+              --name $CONTAINER_NAME \
+              --account-name $STORAGE_ACCOUNT \
+              --account-key $ACCOUNT_KEY
+          else
+            echo "✓ Container $CONTAINER_NAME already exists"
+          fi
+
+          echo "✓ Terraform state backend is ready!"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -61,7 +109,39 @@ jobs:
           echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
+        env:
+          ARM_CLIENT_ID: ${{ env.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ env.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ env.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ env.ARM_TENANT_ID }}
+
+      - name: Clean up orphaned resources if needed
+        run: |
+          echo "Checking for orphaned resources..."
+
+          # Check if resource group exists but is not in Terraform state
+          if az group exists --name react-enterprise-rg | grep -q true; then
+            echo "⚠️  Resource group 'react-enterprise-rg' exists but may not be in Terraform state"
+            echo "Attempting to delete orphaned resources to allow clean deployment..."
+
+            # Delete the resource group to start fresh
+            az group delete --name react-enterprise-rg --yes --no-wait
+
+            echo "Waiting for deletion to complete..."
+            sleep 30
+
+            # Wait until resource group is fully deleted
+            while az group exists --name react-enterprise-rg | grep -q true; do
+              echo "Still deleting..."
+              sleep 10
+            done
+
+            echo "✓ Orphaned resources cleaned up"
+          else
+            echo "✓ No orphaned resources found"
+          fi
+        continue-on-error: true
         env:
           ARM_CLIENT_ID: ${{ env.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ env.ARM_CLIENT_SECRET }}
