@@ -56,14 +56,29 @@ jobs:
           RG_NAME="terraform-state-rg"
           STORAGE_ACCOUNT="tfstatereactent"
           CONTAINER_NAME="tfstate"
-          LOCATION="eastus"
+          LOCATION="southcentralus"
+
+          # Clean up resource group in wrong location if it exists
+          if az group exists --name $RG_NAME | grep -q true; then
+            CURRENT_LOCATION=$(az group show --name $RG_NAME --query location -o tsv)
+            if [ "$CURRENT_LOCATION" != "$LOCATION" ]; then
+              echo "⚠️  Resource group exists in wrong location ($CURRENT_LOCATION), deleting..."
+              az group delete --name $RG_NAME --yes --no-wait
+              echo "Waiting for deletion..."
+              sleep 20
+              while az group exists --name $RG_NAME | grep -q true; do
+                sleep 5
+              done
+              echo "✓ Old resource group deleted"
+            fi
+          fi
 
           # Create resource group if it doesn't exist
           if ! az group exists --name $RG_NAME | grep -q true; then
-            echo "Creating resource group $RG_NAME..."
+            echo "Creating resource group $RG_NAME in $LOCATION..."
             az group create --name $RG_NAME --location $LOCATION
           else
-            echo "✓ Resource group $RG_NAME already exists"
+            echo "✓ Resource group $RG_NAME already exists in correct location"
           fi
 
           # Create storage account if it doesn't exist
