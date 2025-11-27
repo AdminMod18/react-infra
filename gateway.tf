@@ -32,17 +32,35 @@ resource "azurerm_application_gateway" "gateway" {
     public_ip_address_id = azurerm_public_ip.gateway_ip.id
   }
 
+  # Backend pool apuntando al FQDN del Container App
   backend_address_pool {
     name  = "aca-backend"
     fqdns = [azurerm_container_app.frontend.latest_revision_fqdn]
   }
 
+  # Probe personalizado para Container Apps con HTTPS
+  probe {
+    name                                      = "aca-probe"
+    protocol                                  = "Https"
+    path                                      = "/"
+    interval                                  = 30
+    timeout                                   = 30
+    unhealthy_threshold                       = 3
+    pick_host_name_from_backend_http_settings = true
+    match {
+      status_code = ["200-399"]
+    }
+  }
+
+  # Backend HTTP settings configurado para HTTPS
   backend_http_settings {
-    name                  = "http-settings"
-    cookie_based_affinity = "Disabled"
-    port                  = 80
-    protocol              = "Http"
-    request_timeout       = 30
+    name                                = "https-settings"
+    cookie_based_affinity               = "Disabled"
+    port                                = 443
+    protocol                            = "Https"
+    request_timeout                     = 30
+    pick_host_name_from_backend_address = true
+    probe_name                          = "aca-probe"
   }
 
   http_listener {
@@ -57,7 +75,7 @@ resource "azurerm_application_gateway" "gateway" {
     rule_type                  = "Basic"
     http_listener_name         = "listener"
     backend_address_pool_name  = "aca-backend"
-    backend_http_settings_name = "http-settings"
+    backend_http_settings_name = "https-settings"
     priority                   = 100
   }
 }
