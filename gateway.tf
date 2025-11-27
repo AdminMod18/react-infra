@@ -38,10 +38,10 @@ resource "azurerm_application_gateway" "gateway" {
     fqdns = [azurerm_container_app.frontend.latest_revision_fqdn]
   }
 
-  # Probe personalizado para Container Apps con HTTPS
+  # Probe personalizado para Container Apps con HTTP
   probe {
     name                                      = "aca-probe"
-    protocol                                  = "Https"
+    protocol                                  = "Http"
     path                                      = "/"
     interval                                  = 30
     timeout                                   = 30
@@ -52,12 +52,12 @@ resource "azurerm_application_gateway" "gateway" {
     }
   }
 
-  # Backend HTTP settings configurado para HTTPS
+  # Backend HTTP settings configurado para HTTP
   backend_http_settings {
-    name                                = "https-settings"
+    name                                = "http-settings"
     cookie_based_affinity               = "Disabled"
-    port                                = 443
-    protocol                            = "Https"
+    port                                = 80
+    protocol                            = "Http"
     request_timeout                     = 30
     pick_host_name_from_backend_address = true
     probe_name                          = "aca-probe"
@@ -75,7 +75,7 @@ resource "azurerm_application_gateway" "gateway" {
     rule_type                  = "Basic"
     http_listener_name         = "listener"
     backend_address_pool_name  = "aca-backend"
-    backend_http_settings_name = "https-settings"
+    backend_http_settings_name = "http-settings"
     priority                   = 100
   }
 }

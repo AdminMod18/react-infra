@@ -19,5 +19,5 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name            = azurerm_resource_group.rg.name
   log_analytics_workspace_id     = azurerm_log_analytics_workspace.law.id
   infrastructure_subnet_id       = azurerm_subnet.aca_subnet.id
-  internal_load_balancer_enabled = true
+  internal_load_balancer_enabled = false
 }
