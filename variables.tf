@@ -1,14 +1,20 @@
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    azurerm = {
-      source = "hashicorp/azurerm"
-      version = "~> 4.0"
-      variable "docker_image" {}
-    }
-  }
+variable "project" {
+  default = "react-enterprise"
 }
 
-provider "azurerm" {
-  features {}
+variable "location" {
+  default = "eastus"
+}
+
+variable "docker_image" {
+  type        = string
+  description = "Docker image to deploy"
+}
+
+variable "gateway_sku" {
+  default = "WAF_v2"
+}
+
+variable "gateway_capacity" {
+  default = 1
 }

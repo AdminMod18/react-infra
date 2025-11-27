@@ -1,11 +1,4 @@
-variable "project" {
-  default = "react-enterprise"
-}
-
-variable "location" {
-  default = "eastus"
-}
-
-variable "docker_image" {
-  description = "Docker image from frontend repo"
+resource "azurerm_resource_group" "rg" {
+  name     = "${var.project}-rg"
+  location = var.location
 }

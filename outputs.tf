@@ -1,3 +1,3 @@
-output "app_url" {
-  value = azurerm_container_app.frontend.latest_revision_fqdn
+output "public_url" {
+  value = "http://${azurerm_public_ip.gateway_ip.ip_address}"
 }
