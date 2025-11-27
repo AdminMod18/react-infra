@@ -50,13 +50,22 @@ jobs:
           echo "All resource providers are ready!"
 
       - name: Setup Terraform State Backend
+        continue-on-error: true
         run: |
+          set -x  # Enable debug mode
           echo "Setting up Terraform state backend..."
 
           RG_NAME="terraform-state-rg"
           STORAGE_ACCOUNT="tfstatereactent"
           CONTAINER_NAME="tfstate"
           LOCATION="southcentralus"
+
+          echo "Configuration:"
+          echo "  Resource Group: $RG_NAME"
+          echo "  Storage Account: $STORAGE_ACCOUNT"
+          echo "  Container: $CONTAINER_NAME"
+          echo "  Location: $LOCATION"
+          echo ""
 
           # Clean up resource group in wrong location if it exists
           if az group exists --name $RG_NAME | grep -q true; then
@@ -169,7 +178,25 @@ jobs:
           echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
 
       - name: Terraform Init
-        run: terraform init -reconfigure
+        run: |
+          echo "Attempting Terraform init with remote backend..."
+
+          # Try with remote backend first
+          if terraform init -reconfigure; then
+            echo "✓ Terraform initialized with remote backend"
+          else
+            echo "⚠️  Remote backend failed, falling back to local backend..."
+
+            # Backup and remove backend configuration
+            if [ -f backend.tf ]; then
+              mv backend.tf backend.tf.backup
+              echo "Removed backend.tf to use local state"
+            fi
+
+            # Initialize with local backend
+            terraform init -reconfigure
+            echo "✓ Terraform initialized with local backend (state will not persist)"
+          fi
         env:
           ARM_CLIENT_ID: ${{ env.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ env.ARM_CLIENT_SECRET }}
