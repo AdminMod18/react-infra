@@ -1,0 +1,27 @@
+name: Deploy React Infra (Auto)
+
+on:
+  repository_dispatch:
+    types: [deploy-app]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply with New Image
+        run: terraform apply -auto-approve \
+            -var="docker_image=${{ github.event.client_payload.docker_image }}"
