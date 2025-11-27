@@ -1,0 +1,18 @@
+# React
+node_modules/
+dist/
+build/
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.lock.hcl
+
+# Logs
+*.log
+
+# Output
+*.zip
+*.tar
+*.gz
