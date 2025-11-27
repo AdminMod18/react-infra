@@ -12,7 +12,7 @@ variable "docker_image" {
 }
 
 variable "gateway_sku" {
-  default = "WAF_v2"
+  default = "Standard_v2"
 }
 
 variable "gateway_capacity" {
