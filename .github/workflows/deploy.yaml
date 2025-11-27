@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract Docker Image From Payload
+        id: payload
+        run: echo "docker_image=${{ github.event.client_payload.docker_image }}" >> $GITHUB_OUTPUT
+
+      - name: Show received image
+        run: echo "Image received: ${{ steps.payload.outputs.docker_image }}"
+
       - name: Login to Azure
         uses: azure/login@v1
         with:
@@ -23,5 +30,4 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply with New Image
-        run: terraform apply -auto-approve \
-            -var="docker_image=${{ github.event.client_payload.docker_image }}"
+        run: terraform apply -auto-approve -var="docker_image=${{ steps.payload.outputs.docker_image }}"
