@@ -24,6 +24,13 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Register Azure Resource Providers
+        run: |
+          az provider register --namespace Microsoft.App --wait
+          az provider register --namespace Microsoft.OperationalInsights --wait
+          az provider register --namespace Microsoft.Insights --wait
+          echo "Resource providers registered successfully"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
