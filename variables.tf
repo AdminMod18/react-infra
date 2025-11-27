@@ -3,7 +3,7 @@ variable "project" {
 }
 
 variable "location" {
-  default = "eastus"
+  default = "southcentralus"
 }
 
 variable "docker_image" {
