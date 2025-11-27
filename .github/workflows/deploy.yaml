@@ -83,7 +83,7 @@ jobs:
 
           # Create storage account if it doesn't exist
           if ! az storage account show --name $STORAGE_ACCOUNT --resource-group $RG_NAME &>/dev/null; then
-            echo "Creating storage account $STORAGE_ACCOUNT..."
+            echo "Creating storage account $STORAGE_ACCOUNT in $LOCATION..."
             az storage account create \
               --name $STORAGE_ACCOUNT \
               --resource-group $RG_NAME \
@@ -92,25 +92,70 @@ jobs:
               --encryption-services blob \
               --https-only true \
               --min-tls-version TLS1_2
+
+            echo "Waiting for storage account to be fully provisioned..."
+            sleep 10
+
+            # Wait until storage account is available
+            RETRY_COUNT=0
+            MAX_RETRIES=30
+            while ! az storage account show --name $STORAGE_ACCOUNT --resource-group $RG_NAME &>/dev/null; do
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                echo "ERROR: Storage account creation timeout"
+                exit 1
+              fi
+              echo "Waiting for storage account... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+              sleep 5
+            done
+
+            echo "✓ Storage account created and available"
           else
             echo "✓ Storage account $STORAGE_ACCOUNT already exists"
           fi
 
-          # Get storage account key
-          ACCOUNT_KEY=$(az storage account keys list --resource-group $RG_NAME --account-name $STORAGE_ACCOUNT --query '[0].value' -o tsv)
+          # Get storage account key with retry
+          echo "Getting storage account key..."
+          RETRY_COUNT=0
+          MAX_RETRIES=10
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            ACCOUNT_KEY=$(az storage account keys list --resource-group $RG_NAME --account-name $STORAGE_ACCOUNT --query '[0].value' -o tsv 2>/dev/null)
+            if [ ! -z "$ACCOUNT_KEY" ]; then
+              break
+            fi
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Retrying to get storage key... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+            sleep 3
+          done
+
+          if [ -z "$ACCOUNT_KEY" ]; then
+            echo "ERROR: Could not retrieve storage account key"
+            exit 1
+          fi
+
+          echo "✓ Storage account key retrieved"
 
           # Create blob container if it doesn't exist
-          if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT --account-key $ACCOUNT_KEY &>/dev/null; then
+          if ! az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT --account-key "$ACCOUNT_KEY" &>/dev/null; then
             echo "Creating container $CONTAINER_NAME..."
             az storage container create \
               --name $CONTAINER_NAME \
               --account-name $STORAGE_ACCOUNT \
-              --account-key $ACCOUNT_KEY
+              --account-key "$ACCOUNT_KEY"
+            echo "✓ Container created"
           else
             echo "✓ Container $CONTAINER_NAME already exists"
           fi
 
-          echo "✓ Terraform state backend is ready!"
+          # Final verification
+          echo "Verifying backend setup..."
+          if az storage account show --name $STORAGE_ACCOUNT --resource-group $RG_NAME &>/dev/null && \
+             az storage container show --name $CONTAINER_NAME --account-name $STORAGE_ACCOUNT --account-key "$ACCOUNT_KEY" &>/dev/null; then
+            echo "✅ Terraform state backend is ready!"
+          else
+            echo "ERROR: Backend verification failed"
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
